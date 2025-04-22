@@ -191,7 +191,7 @@ bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" gettransaction $txid_fina
 - Προσαρμόστε ποσά, locktimes, fee‑rates κατά βούληση.
 - Όλα τα raw TX, errors, bump‑fee logs εμφανίζονται στο stderr των Python scripts.
 
-##License & Acknowledgments
+##License & Acknowledgments##
 
 This code is provided for educational purposes as part of the Decentralized Technologies course at AUTh.
 Feel free to adapt and improve.
