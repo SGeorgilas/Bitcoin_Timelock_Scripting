@@ -1,150 +1,197 @@
-Βήματα εκτέλεσης
-1. Περιβάλλον PowerShell
-Ανοίγουμε 2 παράθυρα PowerShell και ορίζουμε σε κάθε ένα:
+# Βήματα Εκτέλεσης
 
-powershell
-Copy
-Edit
-# paths — προσαρμόστε στα δικά σας:
-$daemon  = "C:\Program Files\Bitcoin\daemon"
-$conf    = "C:\Program Files\Bitcoin\bitcoin.conf"
-$datadir = "C:\Users\Desktop PC\AppData\Local\Bitcoin"
+## Prerequisites
 
-# RPC credentials (όπως στο bitcoin.conf)
+1. **Bitcoin Core (regtest)**  
+   - Εγκαταστήστε το Bitcoin Core και βεβαιωθείτε ότι έχετε ενεργοποιήσει το `regtest` mode.  
+   - Στο `~/.bitcoin/bitcoin.conf` βάλτε:
+     ```ini
+     regtest=1
+     server=1
+     deprecatedrpc=create_bdb
+     maxtxfee=0.01
+     fallbackfee=0.001
+
+     [regtest]
+     rpcuser=your_username
+     rpcpassword=your_password
+     rpcport=18443
+     ```
+2. **Python 3.8+**  
+   ```powershell
+   pip install -r requirements.txt
+
+3. **Ενεργοποίηση Περιβάλλοντος**:
+   - Ενεργοποιήστε το Python περιβάλλον (environment) όπου έχουν εγκατασταθεί οι απαιτούμενες εξαρτήσεις.
+
+4. **Επαναφορά Καταλόγου Regtest (Προαιρετικό)**:
+   - Διαγράψτε τον κατάλογο ~/.bitcoin/regtest για να επαναφέρετε την τρέχουσα κατάσταση του blockchain..
+
+
+## ΒΗΜΑΤΑ ΕΚΤΕΛΕΣΗΣ
+
+### 1. Άνοιγμα δύο παραθύρων PowerShell και ορισμός μεταβλητών
+Και στα 2 παράθυρα πρέπει να τρέξουν οι παρακάτω εντολές (αντικαταστήστε με τις δικές σας τιμές):
+```sh
+$daemon    = "C:\Program Files\Bitcoin\daemon"
+$conf      = "C:\Users\<YourUser>\.bitcoin\bitcoin.conf"
+$datadir   = "C:\Users\<YourUser>\AppData\Local\Bitcoin\regtest"
 $Env:RPC_USER     = 'your_username'
 $Env:RPC_PASSWORD = 'your_password'
 $Env:RPC_PORT     = '18443'
-2. Εκκίνηση bitcoind (1ο παράθυρο)
-powershell
-Copy
-Edit
-CD $daemon
-./bitcoind -regtest -conf="$conf" -datadir="$datadir"
-3. Προετοιμασία CLI (2ο παράθυρο)
-powershell
-Copy
-Edit
-CD $daemon
-4. Δημιουργία wallet που θα παρακολουθεί τη timelock διεύθυνση
-powershell
-Copy
-Edit
-./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
+```
+
+### 2. Εκκίνηση του Bitcoin‐daemon (Window 1)
+```sh
+cd $daemon
+.\bitcoind -regtest -conf="$conf" -datadir="$datadir"
+```
+
+### 3. Προετοιμασία Wallet & Διευθύνσεων (Window 2)
+#### 3.1 Δημιουργία wallet
+
+```sh
+cd $daemon
+bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
   -named createwallet wallet_name="timelockwallet" disable_private_keys=false descriptors=false load_on_startup=true
-5. Δημιουργία legacy διεύθυνσης
-powershell
-Copy
-Edit
-$legacy_addr = ./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
-  -rpcwallet=timelockwallet getnewaddress "" "legacy"
-6. Λήψη pubkey
-powershell
-Copy
-Edit
-$addr_info = ./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
+```
+#### 3.2 Δημιουργία Legacy address
+
+```sh
+$legacy_addr = bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
+  -rpcwallet=timelockwallet getnewaddress "" legacy
+```
+
+#### 3.3 Λήψη pubkey & WIF
+
+```sh
+$addr_info = bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
   -rpcwallet=timelockwallet getaddressinfo $legacy_addr | ConvertFrom-Json
-$pub_key = $addr_info.pubkey
-7. Λήψη WIF private key
-powershell
-Copy
-Edit
-$wif_key = ./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
+$pubkey    = $addr_info.pubkey
+$wif_key   = bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
   -rpcwallet=timelockwallet dumpprivkey $legacy_addr
-8. Δημιουργία P2SH timelock
-powershell
-Copy
-Edit
-$result = python create_timelock_p2sh.py $pub_key 200 | ConvertFrom-Json
+```
+
+
+### 4. Εξόρυξη 101 blocks (maturity)
+
+```sh
+$mining_addr = bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
+  -rpcwallet=timelockwallet getnewaddress
+bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" generatetoaddress 101 $mining_addr
+```
+
+### 5. Δημιουργία Timelocked P2SH (Script #1)
+
+```sh
+$result = python create_timelock_p2sh.py $pubkey 200 | ConvertFrom-Json
 $p2sh_address      = $result.p2sh_address
 $redeem_script_hex = $result.redeem_script_hex
-9. Εισαγωγή της P2SH διεύθυνσης στο wallet
-powershell
-Copy
-Edit
-./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
+```
+
+### 6. Import P2SH Address στο wallet
+
+```sh
+bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
   -rpcwallet=timelockwallet importaddress $p2sh_address "timelock" false false
-10. Έλεγχος import
-powershell
-Copy
-Edit
-./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
+```
+
+### 7. Έλεγχος εισαγωγής
+
+```sh
+bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
   -rpcwallet=timelockwallet getaddressesbylabel "timelock"
-11. Δημιουργία mining διεύθυνσης
-powershell
-Copy
-Edit
-$mining_addr = ./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
-  -rpcwallet=timelockwallet getnewaddress
-12. Mine 101 blocks (maturity των coinbase)
-powershell
-Copy
-Edit
-./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
-  generatetoaddress 101 $mining_addr
-13. Στείλτε BTC στο P2SH (παράδειγμα 3 αποστολών)
-powershell
-Copy
-Edit
-$txid1 = ./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
-  -rpcwallet=timelockwallet sendtoaddress $p2sh_address 5.0
-$txid2 = ./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
-  -rpcwallet=timelockwallet sendtoaddress $p2sh_address 7.0
-$txid3 = ./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
-  -rpcwallet=timelockwallet sendtoaddress $p2sh_address 3.0
-14. Mine 1 block για επιβεβαίωση
-powershell
-Copy
-Edit
-./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" generatetoaddress 1 $mining_addr
-15. Έλεγχος UTXOs στη timelock διεύθυνση
-powershell
-Copy
-Edit
-./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
+```
+
+
+### 8.  Χρηματοδότηση P2SH (3 αποστολές)
+
+```sh
+$txid1 = bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
+  -rpcwallet=timelockwallet sendtoaddress $p2sh_address 0.3
+$txid2 = bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
+  -rpcwallet=timelockwallet sendtoaddress $p2sh_address 0.7
+$txid3 = bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
+  -rpcwallet=timelockwallet sendtoaddress $p2sh_address 0.5
+
+# Επιβεβαίωση
+bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" generatetoaddress 1 $mining_addr
+```
+
+### 9. Έλεγχος UTXOs
+
+```sh
+bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
   -rpcwallet=timelockwallet listunspent | ConvertFrom-Json
-16. Summary σε JSON
-powershell
-Copy
-Edit
+```
+
+### 10. Προσθήκη σε Summary Variable
+
+```sh
 $summary = [ordered]@{
-  "Legacy_Address"      = $legacy_addr
-  "Public_Key"          = $pub_key
-  "WIF_Private_Key"     = $wif_key
-  "P2SH_Address"        = $p2sh_address
-  "Redeem_Script_Hex"   = $redeem_script_hex
-  "Mining_Address"      = $mining_addr
-  "Transaction_ID_1"    = $txid1
-  "Transaction_ID_2"    = $txid2
-  "Transaction_ID_3"    = $txid3
+  Legacy_Address      = $legacy_addr
+  Public_Key          = $pubkey
+  WIF_Private_Key     = $wif_key
+  P2SH_Address        = $p2sh_address
+  Redeem_Script_Hex   = $redeem_script_hex
+  Mining_Address      = $mining_addr
+  Transaction_ID_1    = $txid1
+  Transaction_ID_2    = $txid2
+  Transaction_ID_3    = $txid3
 } | ConvertTo-Json -Depth 10
 
 Write-Host $summary
-17. Εκτέλεση spender script (θα βγάλει Rejected: non-final)
-powershell
-Copy
-Edit
-python spend_p2sh_timelock.py `
-  --locktime 200 --privkey $wif_key --p2sh $p2sh_address `
-  --destination $mining_addr --feerate 1.0
-18. Ελέγξτε block height & ξεπεράστε το timelock
-powershell
-Copy
-Edit
-./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" getblockcount
-# mine +100 blocks
-./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" `
-  generatetoaddress 100 $mining_addr
-19. Rerun spender & mine 1 block
-powershell
-Copy
-Edit
-$txid_final = python spend_p2sh_timelock.py `
-  --locktime 200 --privkey $wif_key --p2sh $p2sh_address `
-  --destination $mining_addr --feerate 1.0
+```
 
-./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" generatetoaddress 1 $mining_addr
-20. Επιβεβαίωση τελικής συναλλαγής
-powershell
-Copy
-Edit
-./bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" gettransaction $txid_final
+
+### 11. Προσπάθεια spending πριν το locktime (Script #2)
+
+```sh
+python spend_p2sh_timelock.py `
+  --locktime 200 `
+  --privkey $wif_key `
+  --p2sh $p2sh_address `
+  --destination $mining_addr `
+  --feerate 1.0
+# Θα δείτε: Rejected: non-final
+```
+
+### 12. Έλεγχος τρέχοντος block height
+
+```sh
+bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" getblockcount
+```
+
+## 13. Εξόρυξη +100 blocks (ξεπερνάμε το locktime)
+
+```sh
+bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" generatetoaddress 100 $mining_addr
+```
+
+## 14. Spending μετά το locktime
+
+```sh
+$txid_final = python spend_p2sh_timelock.py `
+  --locktime 200 `
+  --privkey $wif_key `
+  --p2sh $p2sh_address `
+  --destination $mining_addr `
+  --feerate 1.0
+```
+
+## 15. Επιβεβαίωση broadcast & mining
+
+```sh
+bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" generatetoaddress 1 $mining_addr
+bitcoin-cli -regtest -conf="$conf" -datadir="$datadir" gettransaction $txid_final
+```
+
+## Notes
+- Μην χρησιμοποιείτε αυτά τα scripts σε mainnet!
+- Προσαρμόστε ποσά, locktimes, fee‑rates κατά βούληση.
+- Όλα τα raw TX, errors, bump‑fee logs εμφανίζονται στο stderr των Python scripts.
+
+##License & Acknowledgments
+
+This code is provided for educational purposes as part of the Decentralized Technologies course at AUTh.
+Feel free to adapt and improve.
