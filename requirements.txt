@@ -1,0 +1,8 @@
+# JSON‐RPC client για Bitcoin
+python-bitcoinrpc
+
+# Helper βιβλιοθήκη για κατασκευή συναλλαγών, διευθύνσεων κλπ.
+bitcoin-utils
+
+# ECDSA για canonical DER υπογραφές
+ecdsa
