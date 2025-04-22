@@ -1,3 +1,33 @@
+# Περιγραφή Έργου (Project Description)
+
+Αυτό το repository περιέχει δύο Python scripts για την πειραματική δημιουργία και εκτέλεση timelocked P2SH συναλλαγών σε Bitcoin Regtest περιβάλλον:
+
+## create_timelock_p2sh.py
+
+Δημιουργεί ένα P2SH address με locking script που επιτρέπει την ανάληψη των κεφαλαίων μόνον μετά από συγκεκριμένο block height ή UNIX epoch time.
+
+Δέχεται ως είσοδο το δημόσιο κλειδί για το P2PKH μέρος και την τιμή του locktime.
+
+Εξάγει σε JSON το P2SH address και το hex του redeem script.
+
+## spend_p2sh_timelock.py
+
+Ανακτά όλα τα UTXOs από το παραπάνω P2SH address, συγκεντρώνει το συνολικό ποσό και υπολογίζει τα κατάλληλα fees με βάση το μέγεθος της συναλλαγής.
+
+Δημιουργεί την ακατέργαστη (unsigned) συναλλαγή, την εμφανίζει, υπογράφει χειροκίνητα κάθε input με canonical DER low‑S υπογραφές και εμφανίζει την υπογεγραμμένη (signed) συναλλαγή μαζί με το txid.
+
+Ελέγχει με testmempoolaccept την ισχύ της συναλλαγής και, εφόσον είναι έγκυρη, τη στέλνει στο blockchain. Υποστηρίζει αυτόματη αύξηση feerate εάν η αρχική απόρριψη οφείλεται σε “min relay fee”.
+
+## **Βασικές Τεχνολογίες**
+- Εγκαταστήστε το Bitcoin Core και βεβαιωθείτε ότι έχετε ενεργοποιήσει το `regtest` mode.
+- Python 3
+- python-bitcoinrpc για JSON‑RPC επικοινωνία με το Bitcoin Core
+- bitcoin-utils για κατασκευή διευθύνσεων, συναλλαγών και script
+- ecdsa για canonical DER υπογραφές
+- Bitcoin Core σε Regtest mode
+
+
+
 # Βήματα Εκτέλεσης
 
 ## Prerequisites
